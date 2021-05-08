@@ -12,7 +12,7 @@ export const getPosts = async (req, res) => {
 
 export const createPost = async (req, res) => {
     const post = req.body;
-    const newPost = new PostMessage(post);
+    const newPost = new PostMessage({ ...post, creator: req.userId, createdAt: new Date().toISOString() });
 
     try {
         await newPost.save();
@@ -56,11 +56,35 @@ export const deletePost = async (req, res) => {
 export const likePost = async (req, res) => {
     const { id } = req.params;
     try {
+
+        // first checking after applying middleware if the user is valid or not
+        if(!req.userId)
+            return res.json({ message: "Unauthenticated." });
+
         if(!mongoose.Types.ObjectId.isValid(id))
             return res.status(404).send("No post with that id");
 
         const post = await PostMessage.findById(id);
-        const updatedPost = await PostMessage.findByIdAndUpdate(id, { likeCount: post.likeCount + 1 }, { new: true });
+        // after getting the post, now inside like's list of the post, we iterate to check if the userId is already present or not
+        // and get a index
+
+        const index = post.likes.findIndex((id) => id === String(req.userId));
+        console.log(index);
+        if(index===-1)
+        {
+            //likes a post
+            post.likes.push(req.userId);
+        }
+        else
+        {
+            //dislikes a post
+            post.likes = post.likes.filter((id) => id !== String(req.userId));
+            // filter is gonna return as array of id except the current user id
+        }
+        // now we have the likes in the likes of the post, we now gonna made a simple update request to update the post with this object
+
+        const updatedPost = await PostMessage.findByIdAndUpdate(id, post , { new: true });
+        
         res.json(updatedPost);
     } catch(error) {
         console.log(error);
